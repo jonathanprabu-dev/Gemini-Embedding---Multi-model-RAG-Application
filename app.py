@@ -102,14 +102,27 @@ with query_tab:
         if not _keys_ready():
             st.error("Missing API keys — see the sidebar.")
         else:
+            # Retrieval and reasoning are handled separately so a failure in the
+            # model call (e.g. an OpenAI quota error) still shows the retrieved
+            # sources instead of discarding them.
+            hits = None
             try:
                 with st.spinner("Retrieving ..."):
                     hits = retrieve(question, match_count=k)
-                with st.spinner("Reasoning with the model ..."):
-                    result = answer(question, hits)
+            except Exception as exc:  # noqa: BLE001
+                st.error(f"Retrieval failed: {exc}")
+                st.code(traceback.format_exc())
 
+            if hits is not None:
                 st.markdown("### Answer")
-                st.markdown(result["answer"] or "_(empty response)_")
+                try:
+                    with st.spinner("Reasoning with the model ..."):
+                        result = answer(question, hits)
+                    st.markdown(result["answer"] or "_(empty response)_")
+                except Exception as exc:  # noqa: BLE001
+                    st.error(f"Answer generation failed: {exc}")
+                    st.caption("Retrieved sources are still shown below.")
+                    st.code(traceback.format_exc())
 
                 st.markdown("### Retrieved sources")
                 if not hits:
@@ -133,6 +146,3 @@ with query_tab:
                             st.audio(url)
                         elif url:
                             st.markdown(f"[Open original file]({url})")
-            except Exception as exc:  # noqa: BLE001
-                st.error(str(exc))
-                st.code(traceback.format_exc())
