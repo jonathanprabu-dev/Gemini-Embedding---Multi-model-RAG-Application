@@ -1,0 +1,24 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local upload drop-folder contents (keep the folder + committed samples)
+data/*
+!data/.gitkeep
+!data/sample_gemini_embedding.txt
+!data/sample_notes.md
+!data/sample_shapes.png
+
+# Playwright runtime output
+.playwright-cli/
+.playwright/
+.playwright-mcp/
+
+# Local tooling / test artifacts
+.claude/
+rag-gui.png

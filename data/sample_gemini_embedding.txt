@@ -1,0 +1,27 @@
+# Gemini Embedding 2 — Sample Reference Note
+
+Gemini Embedding 2 (model ID `gemini-embedding-2-preview`) is a multimodal embedding
+model from Google. Unlike text-only embedders, it maps text, images, video, audio, and
+PDF documents into a single shared vector space, so a text query can retrieve a relevant
+image and vice versa.
+
+## Key facts
+
+- Default output dimensionality is 3072, with Matryoshka Representation Learning (MRL)
+  allowing the vector to be truncated to smaller sizes such as 1536 or 768 with minimal
+  quality loss.
+- When the output dimensionality is below 3072, the returned vectors are NOT unit length,
+  so applications must L2-normalize them before storing or comparing.
+- Task types matter: use RETRIEVAL_DOCUMENT when embedding stored content and
+  RETRIEVAL_QUERY when embedding a search query.
+- Text inputs support up to 8192 tokens per request.
+
+## Why this matters for RAG
+
+In a Retrieval-Augmented Generation system, documents are embedded once and stored in a
+vector database. At query time, the user's question is embedded and the nearest vectors
+are retrieved by cosine similarity. A reasoning model then answers using only that
+retrieved context, which keeps answers grounded in the source material.
+
+The capital of France is Paris. This sentence exists so you can test a factual query such
+as "What city is mentioned as the capital of France?" and see the retrieval work.
