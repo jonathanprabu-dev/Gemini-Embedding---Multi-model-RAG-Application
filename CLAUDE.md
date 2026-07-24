@@ -1,0 +1,70 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+A multimodal RAG app: files of any modality (text/PDF/docx/image/video/audio) are embedded into **one shared vector space** with Gemini Embedding 2, stored in Supabase pgvector + Storage, retrieved by cosine similarity, and answered by a **local Ollama** vision model. Streamlit is the only UI.
+
+## Commands
+
+```bash
+pip install -r requirements.txt
+cp .env.example .env          # fill in GEMINI_API_KEY + SUPABASE_SERVICE_ROLE_KEY
+streamlit run app.py          # http://localhost:8501
+```
+
+Headless run (for driving with Playwright/screenshots):
+```bash
+python -m streamlit run app.py --server.headless true --server.port 8501
+```
+
+Reasoning requires a running Ollama daemon with the configured model pulled (`ollama pull gemma3:4b`, or whatever `OLLAMA_MODEL` is set to). If Ollama is down, retrieval still works — the app catches the model failure and shows the retrieved sources anyway.
+
+`scripts\start-rag.cmd` is the logon launcher (shortcut in `shell:startup`): starts Ollama if needed, starts Streamlit, waits for the port, opens Chrome. It is intentionally batch — an earlier PowerShell version that polled the port with `Net.Sockets.TcpClient` in a retry loop was **blocked and deleted by Defender's AMSI** as a port scanner. Don't port it back to PowerShell.
+
+There is no test suite and no linter configured. Verification is done by running the Streamlit app and driving it.
+
+## Architecture
+
+Data flows in one direction through five modules; each has a single responsibility and imports only downward.
+
+```
+config.py      env vars + lru_cached clients (gemini / ollama / supabase). Every model ID,
+               dimension, and tunable is defined here exactly once — never hardcode them elsewhere.
+embeddings.py  the ONLY place that calls Gemini embed_content
+ingest.py      modality detection → extract/chunk → upload original to Storage → embed → insert rows
+retrieve.py    embed query → match_documents RPC → attach signed Storage URLs
+reasoning.py   hits → prompt (+ base64 images) → Ollama chat → {answer, citations}
+app.py         Streamlit: Upload & Embed / Query / Browse tabs
+```
+
+### Embedding invariants (breaking these silently corrupts retrieval)
+
+- `EMBED_DIM` (1536) must equal **all three** of: the `documents.embedding vector(1536)` column, the `match_documents` RPC signature, and `output_dimensionality` in the embed call.
+- Gemini returns **non-unit** vectors whenever `output_dimensionality < 3072`, so `embeddings._normalize` does manual L2 normalization after MRL truncation. Cosine similarity in Postgres assumes unit vectors — do not remove this.
+- Task types are asymmetric on purpose: stored content uses `RETRIEVAL_DOCUMENT`, queries use `RETRIEVAL_QUERY`. Mixing them degrades ranking.
+
+### Supabase contract
+
+- Table `public.documents`: `source_name, modality, storage_path, chunk_index, content, metadata (jsonb), embedding vector(1536)`. Text/PDF rows carry `content`; image/video/audio rows have `content = NULL` and are located only by their vector.
+- RPC `match_documents(query_embedding, match_count, filter, match_threshold, modality_filter)` — the last two do threshold and modality filtering **in SQL**. Changing the Python call site means changing the SQL function signature too (via a migration), and vice versa.
+- Storage bucket `documents` is private; originals are uploaded under `{uuid}/{filename}` and surfaced through short-lived signed URLs (`retrieve._signed_url`, 1h TTL).
+- `SUPABASE_SERVICE_ROLE_KEY` bypasses RLS — server-side only, never into anything browser-reachable.
+
+### Reasoning quirk
+
+Ollama takes images as a **list of base64 strings on the message** (`msg["images"]`), not as interleaved content parts like the OpenAI/Anthropic APIs. `reasoning._build_prompt` downloads image hits from Storage and base64-encodes them for this. Video/audio hits are cited by name only — nothing is fed inline for them.
+
+## Streamlit gotchas already solved here
+
+Several non-obvious workarounds in `app.py` exist for real bugs; don't "clean them up":
+
+- **`uploader_key` remount.** Streamlit's dropzone latches into a drag-active state on a `dragenter` with no matching `dragleave`, and an invisible overlay then swallows clicks. Bumping the widget key to remount it is the only Python-side fix. Bumping it after an embed also prevents double-ingesting the same file.
+- **Search button is not `disabled` on empty input.** `st.text_input` only commits on Enter/blur, so a disabled button would eat the first click.
+- **`st.rerun()` after ingest** is needed because the sidebar stats are computed at the top of the script, before the button handler runs.
+- Retrieval and reasoning are wrapped in **separate** try/except blocks so a model failure never discards the retrieved sources.
+
+## Notes
+
+- The repo root holds many `rag-*.png` screenshots from manual UI verification; they are untracked scratch, not fixtures.

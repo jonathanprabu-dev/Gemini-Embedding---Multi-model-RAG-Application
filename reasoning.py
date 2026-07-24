@@ -1,15 +1,17 @@
-"""Answer generation with OpenAI gpt-5.1 over the retrieved multimodal context.
+"""Answer generation over the retrieved multimodal context.
 
-Text/PDF hits are injected as text context. Image hits are attached to the message
-so the vision-capable model can actually look at them. Video/audio hits are cited by
-name (their transcript/frames are not fed inline), so the model knows they were retrieved.
+Reasoning runs on a local Ollama model (default gemma3:4b) — no external API
+or billing. Text/PDF hits are injected as text context. Image hits are attached to the
+message so the vision model can actually look at them (Ollama takes images as a list of
+base64 strings on the message, not interleaved content parts). Video/audio hits are cited
+by name (their transcript/frames are not fed inline), so the model knows they were retrieved.
 """
 from __future__ import annotations
 
 import base64
 from typing import Dict, List, Tuple
 
-from config import OPENAI_MODEL, STORAGE_BUCKET, openai_client, supabase_client
+from config import OLLAMA_MODEL, STORAGE_BUCKET, ollama_client, supabase_client
 
 SYSTEM_PROMPT = (
     "You are a retrieval-augmented assistant. Answer the user's question using ONLY the "
@@ -22,9 +24,10 @@ def _download(storage_path: str) -> bytes:
     return supabase_client().storage.from_(STORAGE_BUCKET).download(storage_path)
 
 
-def _build_user_content(query: str, hits: List[Dict]) -> Tuple[list, List[Dict]]:
-    """Build the OpenAI multimodal user-message content and a citation list."""
-    parts: list = [{"type": "text", "text": f"Question: {query}\n\nRetrieved context:"}]
+def _build_prompt(query: str, hits: List[Dict]) -> Tuple[str, List[str], List[Dict]]:
+    """Build the text prompt, a list of base64 images, and a citation list."""
+    lines: List[str] = [f"Question: {query}", "", "Retrieved context:"]
+    images: List[str] = []
     citations: List[Dict] = []
 
     for i, hit in enumerate(hits, start=1):
@@ -35,24 +38,18 @@ def _build_user_content(query: str, hits: List[Dict]) -> Tuple[list, List[Dict]]
 
         header = f"\n[{i}] source={source} modality={modality} similarity={sim:.3f}"
         if hit.get("content"):
-            parts.append({"type": "text", "text": f"{header}\n{hit['content']}"})
+            lines.append(f"{header}\n{hit['content']}")
         elif modality == "image" and hit.get("storage_path"):
-            parts.append({"type": "text", "text": f"{header} (image attached below)"})
+            lines.append(f"{header} (image attached)")
             try:
                 raw = _download(hit["storage_path"])
-                mime = (hit.get("metadata") or {}).get("mime_type", "image/png")
-                b64 = base64.b64encode(raw).decode("ascii")
-                parts.append(
-                    {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}}
-                )
+                images.append(base64.b64encode(raw).decode("ascii"))
             except Exception as exc:
-                parts.append({"type": "text", "text": f"(could not load image: {exc})"})
+                lines.append(f"(could not load image: {exc})")
         else:
-            parts.append(
-                {"type": "text", "text": f"{header} (media of type {modality}; not shown inline)"}
-            )
+            lines.append(f"{header} (media of type {modality}; not shown inline)")
 
-    return parts, citations
+    return "\n".join(lines), images, citations
 
 
 def answer(query: str, hits: List[Dict]) -> Dict:
@@ -60,12 +57,16 @@ def answer(query: str, hits: List[Dict]) -> Dict:
     if not hits:
         return {"answer": "No relevant documents were found in the vector store.", "citations": []}
 
-    user_content, citations = _build_user_content(query, hits)
-    resp = openai_client().chat.completions.create(
-        model=OPENAI_MODEL,
+    prompt, images, citations = _build_prompt(query, hits)
+    user_msg: Dict = {"role": "user", "content": prompt}
+    if images:
+        user_msg["images"] = images
+
+    resp = ollama_client().chat(
+        model=OLLAMA_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_content},
+            user_msg,
         ],
     )
-    return {"answer": resp.choices[0].message.content, "citations": citations}
+    return {"answer": resp["message"]["content"], "citations": citations}

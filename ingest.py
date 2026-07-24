@@ -114,9 +114,15 @@ def _insert_rows(rows: List[Dict]) -> int:
     return len(rows)
 
 
-def ingest_file(filename: str, data: bytes) -> Dict:
-    """Ingest one file (bytes already in memory). Returns a summary dict."""
+def ingest_file(filename: str, data: bytes, title: str | None = None) -> Dict:
+    """Ingest one file (bytes already in memory). Returns a summary dict.
+
+    `title` is the human-readable document title shown in Browse and in the
+    retrieved-sources list. It defaults to the filename. The real filename is
+    still used for the storage path and MIME sniffing, and is kept in metadata.
+    """
     modality = detect_modality(filename)
+    source_name = (title or "").strip() or filename
     storage_path = upload_original(filename, data)
     rows: List[Dict] = []
 
@@ -129,12 +135,12 @@ def ingest_file(filename: str, data: bytes) -> Dict:
         for i, (chunk, vec) in enumerate(zip(chunks, vectors)):
             rows.append(
                 {
-                    "source_name": filename,
+                    "source_name": source_name,
                     "modality": "pdf" if modality == "pdf" else "text",
                     "storage_path": storage_path,
                     "chunk_index": i,
                     "content": chunk,
-                    "metadata": {"chunks": len(chunks)},
+                    "metadata": {"chunks": len(chunks), "filename": filename},
                     "embedding": vec,
                 }
             )
@@ -142,12 +148,12 @@ def ingest_file(filename: str, data: bytes) -> Dict:
         vec = embed_media(data, guess_mime(filename))
         rows.append(
             {
-                "source_name": filename,
+                "source_name": source_name,
                 "modality": modality,
                 "storage_path": storage_path,
                 "chunk_index": 0,
                 "content": None,
-                "metadata": {"mime_type": guess_mime(filename)},
+                "metadata": {"mime_type": guess_mime(filename), "filename": filename},
                 "embedding": vec,
             }
         )
@@ -157,6 +163,7 @@ def ingest_file(filename: str, data: bytes) -> Dict:
     inserted = _insert_rows(rows)
     return {
         "filename": filename,
+        "title": source_name,
         "modality": modality,
         "chunks": inserted,
         "storage_path": storage_path,
@@ -169,12 +176,27 @@ def ingest_path(path: str) -> Dict:
     return ingest_file(os.path.basename(path), data)
 
 
-def ingest_directory(directory: str) -> List[Dict]:
-    """Ingest every supported file in a directory (non-recursive)."""
+def ingest_directory(directory: str) -> Tuple[List[Dict], List[str]]:
+    """Ingest every supported file in a directory (non-recursive).
+
+    Returns (results, skipped). One bad file no longer aborts the whole batch:
+    unsupported types and per-file failures are collected into `skipped` so the
+    remaining files still get ingested.
+    """
     results: List[Dict] = []
+    skipped: List[str] = []
+    if not os.path.isdir(directory):
+        return results, skipped
+
     for name in sorted(os.listdir(directory)):
         full = os.path.join(directory, name)
         if not os.path.isfile(full) or name.startswith("."):
             continue
-        results.append(ingest_path(full))
-    return results
+        if detect_modality(name) == "other":
+            skipped.append(f"{name} — unsupported file type")
+            continue
+        try:
+            results.append(ingest_path(full))
+        except Exception as exc:  # noqa: BLE001
+            skipped.append(f"{name} — {exc}")
+    return results, skipped

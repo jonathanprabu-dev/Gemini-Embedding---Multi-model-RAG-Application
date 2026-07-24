@@ -19,6 +19,11 @@ data/*
 .playwright/
 .playwright-mcp/
 
+# Startup launcher log
+scripts/start-rag.log
+
 # Local tooling / test artifacts
 .claude/
-rag-gui.png
+
+# Manual UI-verification screenshots (scratch, not fixtures)
+rag-*.png

@@ -27,7 +27,11 @@ def _require(name: str) -> str:
 
 # ---- Models ----
 EMBED_MODEL = os.getenv("EMBED_MODEL", "gemini-embedding-2-preview")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.1")
+
+# Reasoning runs on a local Ollama model (no external API / billing).
+# gemma3 is multimodal and can look at retrieved images; override in .env to swap models.
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3:4b")
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 
 # ---- Embedding invariants ----
 # MRL-truncated + L2-normalized dimension. MUST equal the DB vector() size.
@@ -54,10 +58,10 @@ def gemini_client():
 
 
 @lru_cache(maxsize=1)
-def openai_client():
-    from openai import OpenAI
+def ollama_client():
+    from ollama import Client
 
-    return OpenAI(api_key=_require("OPENAI_API_KEY"))
+    return Client(host=OLLAMA_HOST)
 
 
 @lru_cache(maxsize=1)
