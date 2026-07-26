@@ -34,7 +34,8 @@ config.py      env vars + lru_cached clients (gemini / ollama / supabase). Every
                dimension, and tunable is defined here exactly once — never hardcode them elsewhere.
 embeddings.py  the ONLY place that calls Gemini embed_content
 ingest.py      modality detection → extract/chunk → upload original to Storage → embed → insert rows
-retrieve.py    embed query → match_documents RPC → attach signed Storage URLs
+retrieve.py    retrieve(): embed query → match_documents RPC → signed URLs.
+               list_documents(): group rows by source_name for the Browse tab.
 reasoning.py   hits → prompt (+ base64 images) → Ollama chat → {answer, citations}
 app.py         Streamlit: Upload & Embed / Query / Browse tabs
 ```
@@ -48,6 +49,7 @@ app.py         Streamlit: Upload & Embed / Query / Browse tabs
 ### Supabase contract
 
 - Table `public.documents`: `source_name, modality, storage_path, chunk_index, content, metadata (jsonb), embedding vector(1536)`. Text/PDF rows carry `content`; image/video/audio rows have `content = NULL` and are located only by their vector.
+- **`source_name` is the human display title, NOT the filename.** `ingest_file(..., title=)` defaults it to the filename but the Upload tab lets the user override it (with several files staged, each title is suffixed with `(filename)` to avoid collisions). The real filename always lives in `metadata.filename` and is what drives the storage path + MIME sniffing. Browse groups rows by `source_name`, so all chunks of one doc collapse to one entry.
 - RPC `match_documents(query_embedding, match_count, filter, match_threshold, modality_filter)` — the last two do threshold and modality filtering **in SQL**. Changing the Python call site means changing the SQL function signature too (via a migration), and vice versa.
 - Storage bucket `documents` is private; originals are uploaded under `{uuid}/{filename}` and surfaced through short-lived signed URLs (`retrieve._signed_url`, 1h TTL).
 - `SUPABASE_SERVICE_ROLE_KEY` bypasses RLS — server-side only, never into anything browser-reachable.
@@ -55,6 +57,8 @@ app.py         Streamlit: Upload & Embed / Query / Browse tabs
 ### Reasoning quirk
 
 Ollama takes images as a **list of base64 strings on the message** (`msg["images"]`), not as interleaved content parts like the OpenAI/Anthropic APIs. `reasoning._build_prompt` downloads image hits from Storage and base64-encodes them for this. Video/audio hits are cited by name only — nothing is fed inline for them.
+
+**Model compatibility trap:** the default `OLLAMA_MODEL` is `gemma3:4b` (a multimodal model on Ollama's engine), NOT `llama3.2-vision`. Llama 3.2 Vision's `mllama` architecture fails to load on the installed Ollama 0.32.3 (`unknown model architecture: 'mllama'`) — the model pulls fine but errors at inference. If you swap `OLLAMA_MODEL`, pick one this Ollama build actually runs. First inference after a fresh pull also does a slow cold load (~5 min); later calls reuse the loaded model.
 
 ## Streamlit gotchas already solved here
 
