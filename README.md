@@ -42,6 +42,8 @@ it reuses an already-running server rather than starting a second one. It append
 ## Use
 
 - **📤 Upload & Embed** — drag-and-drop files, or drop them in `data/` and click *Embed everything in data/*.
+  An optional **document title** names the upload (defaults to the filename); it's the label shown in
+  Browse and in the retrieved-sources list. *Reset uploader* clears a stuck drop zone.
 - **💬 Query** — ask a question; the app retrieves the top matches and answers with citations.
   Top-k, similarity threshold, and context-type filter live in the sidebar; the reasoning model
   can be switched off to see retrieved sources only.
