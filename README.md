@@ -39,6 +39,11 @@ To re-enable, put a shortcut to the script back there. Running the script by han
 it reuses an already-running server rather than starting a second one. It appends to
 `scripts\start-rag.log`, which is where to look if a tab doesn't appear.
 
+To also reopen the app every time you launch Chrome, set it as a startup page in
+**Chrome → Settings → On startup → Open a specific page or set of pages → Add** `http://localhost:8501`
+(use the same port the launcher serves). The tab only loads once the server is up, so keep the
+logon launcher enabled. Chrome guards this setting, so it must be set in the UI, not scripted.
+
 ## Use
 
 - **📤 Upload & Embed** — drag-and-drop files, or drop them in `data/` and click *Embed everything in data/*.

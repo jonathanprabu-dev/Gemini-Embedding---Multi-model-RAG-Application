@@ -21,7 +21,9 @@ python -m streamlit run app.py --server.headless true --server.port 8501
 
 Reasoning requires a running Ollama daemon with the configured model pulled (`ollama pull gemma3:4b`, or whatever `OLLAMA_MODEL` is set to). If Ollama is down, retrieval still works — the app catches the model failure and shows the retrieved sources anyway.
 
-`scripts\start-rag.cmd` is the logon launcher (shortcut in `shell:startup`): starts Ollama if needed, starts Streamlit, waits for the port, opens Chrome. It is intentionally batch — an earlier PowerShell version that polled the port with `Net.Sockets.TcpClient` in a retry loop was **blocked and deleted by Defender's AMSI** as a port scanner. Don't port it back to PowerShell.
+`scripts\start-rag.cmd` is the logon launcher (shortcut in `shell:startup`): starts Ollama if needed, starts Streamlit on **port 8501** (the canonical port — the launcher, README, and any Chrome startup page all use it; ad-hoc `streamlit run` may pick another), waits for the port, opens Chrome. It is intentionally batch — an earlier PowerShell version that polled the port with `Net.Sockets.TcpClient` in a retry loop was **blocked and deleted by Defender's AMSI** as a port scanner. Don't port it back to PowerShell.
+
+Chrome's "open on startup" pages (`session.startup_urls` / `restore_on_startup`) are **protected preferences** — Chrome HMAC-signs them and resets any value written directly into its `Preferences` JSON by an outside process. You cannot script this; it must be set through Chrome's Settings UI (`chrome://settings/onStartup`). Point it at the launcher's port (8501), and remember the tab only loads if the Streamlit server is already up.
 
 There is no test suite and no linter configured. Verification is done by running the Streamlit app and driving it.
 
