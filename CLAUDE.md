@@ -19,7 +19,7 @@ Headless run (for driving with Playwright/screenshots):
 python -m streamlit run app.py --server.headless true --server.port 8501
 ```
 
-Reasoning requires a running Ollama daemon with the configured model pulled (`ollama pull gemma3:4b`, or whatever `OLLAMA_MODEL` is set to). If Ollama is down, retrieval still works — the app catches the model failure and shows the retrieved sources anyway.
+Reasoning requires a running Ollama daemon with the configured model pulled (`ollama pull qwen3.5:4b`, or whatever `OLLAMA_MODEL` is set to). If Ollama is down, retrieval still works — the app catches the model failure and shows the retrieved sources anyway.
 
 `scripts\start-rag.cmd` is the logon launcher (shortcut in `shell:startup`): starts Ollama if needed, starts Streamlit on **port 8501** (the canonical port — the launcher, README, and any Chrome startup page all use it; ad-hoc `streamlit run` may pick another), waits for the port, opens Chrome. It is intentionally batch — an earlier PowerShell version that polled the port with `Net.Sockets.TcpClient` in a retry loop was **blocked and deleted by Defender's AMSI** as a port scanner. Don't port it back to PowerShell.
 
@@ -60,7 +60,7 @@ app.py         Streamlit: Upload & Embed / Query / Browse tabs
 
 Ollama takes images as a **list of base64 strings on the message** (`msg["images"]`), not as interleaved content parts like the OpenAI/Anthropic APIs. `reasoning._build_prompt` downloads image hits from Storage and base64-encodes them for this. Video/audio hits are cited by name only — nothing is fed inline for them.
 
-**Model compatibility trap:** the default `OLLAMA_MODEL` is `gemma3:4b` (a multimodal model on Ollama's engine), NOT `llama3.2-vision`. Llama 3.2 Vision's `mllama` architecture fails to load on the installed Ollama 0.32.3 (`unknown model architecture: 'mllama'`) — the model pulls fine but errors at inference. If you swap `OLLAMA_MODEL`, pick one this Ollama build actually runs. First inference after a fresh pull also does a slow cold load (~5 min); later calls reuse the loaded model.
+**Model compatibility trap:** the default `OLLAMA_MODEL` is `qwen3.5:4b` (a vision-capable model on Ollama's engine), NOT `llama3.2-vision`. Llama 3.2 Vision's `mllama` architecture fails to load on the installed Ollama 0.32.3 (`unknown model architecture: 'mllama'`) — the model pulls fine but errors at inference. If you swap `OLLAMA_MODEL`, pick one this Ollama build actually runs. First inference after a fresh pull also does a slow cold load (~5 min); later calls reuse the loaded model.
 
 ## Streamlit gotchas already solved here
 

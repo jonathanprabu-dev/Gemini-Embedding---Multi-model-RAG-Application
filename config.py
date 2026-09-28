@@ -29,8 +29,8 @@ def _require(name: str) -> str:
 EMBED_MODEL = os.getenv("EMBED_MODEL", "gemini-embedding-2-preview")
 
 # Reasoning runs on a local Ollama model (no external API / billing).
-# gemma3 is multimodal and can look at retrieved images; override in .env to swap models.
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3:4b")
+# qwen3.5 is vision-capable and can look at retrieved images; override in .env to swap models.
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:4b")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 
 # ---- Embedding invariants ----

@@ -9,7 +9,7 @@ over the retrieved context. A **Streamlit** GUI drives the whole flow.
 ```bash
 pip install -r requirements.txt
 cp .env.example .env     # then fill in your keys
-ollama pull gemma3:4b    # the local reasoning model
+ollama pull qwen3.5:4b   # the local reasoning model
 ```
 
 Set these in `.env`:

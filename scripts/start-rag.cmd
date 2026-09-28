@@ -8,7 +8,7 @@ REM port in a retry loop was blocked outright by Defender's AMSI heuristics.
 
 setlocal
 set "PROJECT=C:\dev\Gemini Embedding Restruchered"
-set "PYTHON=C:\Users\jonat\AppData\Local\Programs\Python\Python314\python.exe"
+set "PYTHON=C:\Users\jonat\AppData\Local\Python\bin\python.exe"
 set "CHROME=C:\Program Files\Google\Chrome\Application\chrome.exe"
 set "URL=http://localhost:8501"
 set "LOG=%PROJECT%\scripts\start-rag.log"
