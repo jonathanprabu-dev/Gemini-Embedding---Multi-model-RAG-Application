@@ -1,6 +1,6 @@
 """Answer generation over the retrieved multimodal context.
 
-Reasoning runs on a local Ollama model (default gemma3:4b) — no external API
+Reasoning runs on a local Ollama model (default qwen3.5:4b) — no external API
 or billing. Text/PDF hits are injected as text context. Image hits are attached to the
 message so the vision model can actually look at them (Ollama takes images as a list of
 base64 strings on the message, not interleaved content parts). Video/audio hits are cited
